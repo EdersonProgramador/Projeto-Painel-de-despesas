@@ -1,60 +1,148 @@
-import './style.css'
-import typescriptLogo from './assets/typescript.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import { setupCounter } from './counter.ts'
+import './style.css';
+import type { Categoria, Expense } from './types';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-<section id="center">
-  <div class="hero">
-    <img src="${heroImg}" class="base" width="170" height="179">
-    <img src="${typescriptLogo}" class="framework" alt="TypeScript logo"/>
-    <img src="${viteLogo}" class="vite" alt="Vite logo" />
-  </div>
-  <div>
-    <h1>Get started</h1>
-    <p>Edit <code>src/main.ts</code> and save to test <code>HMR</code></p>
-  </div>
-  <button id="counter" type="button" class="counter"></button>
-</section>
+const categories: Categoria[] = ['Alimento', 'transporte', 'lazer', 'saúde', 'outros'];
 
-<div class="ticks"></div>
+let expenses: Expense[] = [];
 
-<section id="next-steps">
-  <div id="docs">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#documentation-icon"></use></svg>
-    <h2>Documentation</h2>
-    <p>Your questions, answered</p>
-    <ul>
-      <li>
-        <a href="https://vite.dev/" target="_blank">
-          <img class="logo" src="${viteLogo}" alt="" />
-          Explore Vite
-        </a>
-      </li>
-      <li>
-        <a href="https://www.typescriptlang.org" target="_blank">
-          <img class="button-icon" src="${typescriptLogo}" alt="">
-          Learn more
-        </a>
-      </li>
-    </ul>
-  </div>
-  <div id="social">
-    <svg class="icon" role="presentation" aria-hidden="true"><use href="/icons.svg#social-icon"></use></svg>
-    <h2>Connect with us</h2>
-    <p>Join the Vite community</p>
-    <ul>
-      <li><a href="https://github.com/vitejs/vite" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#github-icon"></use></svg>GitHub</a></li>
-      <li><a href="https://chat.vite.dev/" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#discord-icon"></use></svg>Discord</a></li>
-      <li><a href="https://x.com/vite_js" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#x-icon"></use></svg>X.com</a></li>
-      <li><a href="https://bsky.app/profile/vite.dev" target="_blank"><svg class="button-icon" role="presentation" aria-hidden="true"><use href="/icons.svg#bluesky-icon"></use></svg>Bluesky</a></li>
-    </ul>
-  </div>
-</section>
+const form = getElement<HTMLFormElement>('#expense-form');
+const titleInput = getElement<HTMLInputElement>('#title');
+const valueInput = getElement<HTMLInputElement>('#value');
+const categorySelect = getElement<HTMLSelectElement>('#category');
+const formError = getElement<HTMLParagraphElement>('#form-error');
+const expenseList = getElement<HTMLUListElement>('#expense-list');
+const emptyMessage = getElement<HTMLParagraphElement>('#empty-message');
+const totalElement = getElement<HTMLElement>('#total-expenses');
+const expenseCount = getElement<HTMLElement>('#expense-count');
 
-<div class="ticks"></div>
-<section id="spacer"></section>
-`
+form.addEventListener('submit', handleSubmit);
+renderSummary();
+renderExpenses();
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+function handleSubmit(event: SubmitEvent) {
+  event.preventDefault();
+
+  const title = titleInput.value.trim();
+  const value = Number(valueInput.value);
+  const category = categorySelect.value;
+
+  if (!isValidCategory(category)) {
+    showError('Selecione uma categoria válida.');
+    return;
+  }
+
+  if (!title) {
+    showError('Informe o título da despesa.');
+    return;
+  }
+
+  if (!value || value <= 0) {
+    showError('Informe um valor maior que zero.');
+    return;
+  }
+
+  addExpense({
+    id: createId(),
+    titulo: title,
+    valor: value,
+    categoria: category,
+  });
+
+  form.reset();
+  clearError();
+  titleInput.focus();
+}
+
+function addExpense(expense: Expense) {
+  expenses = [...expenses, expense];
+  renderExpenses();
+  renderSummary();
+}
+
+function renderExpenses() {
+  expenseList.replaceChildren();
+
+  emptyMessage.hidden = expenses.length > 0;
+  expenseCount.textContent = `${expenses.length} ${expenses.length === 1 ? 'item' : 'itens'}`;
+
+  for (const expense of expenses) {
+    const item = document.createElement('li');
+    item.className = 'expense-item';
+
+    const info = document.createElement('div');
+
+    const title = document.createElement('strong');
+    title.textContent = expense.titulo;
+
+    const category = document.createElement('span');
+    category.className = 'expense-category';
+    category.textContent = expense.categoria;
+
+    const value = document.createElement('strong');
+    value.className = 'expense-value';
+    value.textContent = formatCurrency(expense.valor);
+
+    info.append(title, category);
+    item.append(info, value);
+    expenseList.append(item);
+  }
+}
+
+function renderSummary() {
+  totalElement.textContent = formatCurrency(calculateTotal());
+
+  for (const category of categories) {
+    const categoryTotal = document.getElementById(`total-${category}`);
+
+    if (categoryTotal) {
+      categoryTotal.textContent = formatCurrency(calculateTotalByCategory(category));
+    }
+  }
+}
+
+function calculateTotal() {
+  return expenses.reduce((total, expense) => total + expense.valor, 0);
+}
+
+function calculateTotalByCategory(category: Categoria) {
+  return expenses
+    .filter((expense) => expense.categoria === category)
+    .reduce((total, expense) => total + expense.valor, 0);
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+}
+
+function showError(message: string) {
+  formError.textContent = message;
+}
+
+function clearError() {
+  formError.textContent = '';
+}
+
+function isValidCategory(category: string): category is Categoria {
+  return categories.includes(category as Categoria);
+}
+
+function createId() {
+  if (crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return String(Date.now());
+}
+
+function getElement<T extends HTMLElement>(selector: string) {
+  const element = document.querySelector<T>(selector);
+
+  if (!element) {
+    throw new Error(`Elemento não encontrado: ${selector}`);
+  }
+
+  return element;
+}
